@@ -50,8 +50,8 @@ class ControllerCheckoutConfirm extends Controller {
         $order_data['shipping_address_format'] = $this->session->data['shipping_address']['address_format'];
         $order_data['shipping_custom_field'] = (isset($this->session->data['shipping_address']['custom_field']) ? $this->session->data['shipping_address']['custom_field'] : array());
 */
-        echo $this->session->data['shipping_address']['lastname'];
-        echo $this->session->data['shipping_address']['city'];
+        //echo $this->session->data['shipping_address']['lastname'];
+        //echo $this->session->data['shipping_address']['city'];
         $Destination = $Customer ->addChild('Destination');
         $Destination-> addChild("StreetAddress1", $this->session->data['shipping_address']['address_1']);
         $Destination-> addChild("City", $this->session->data['shipping_address']['city']);
@@ -118,8 +118,8 @@ class ControllerCheckoutConfirm extends Controller {
         $taxmatch = array();
         preg_match($taxpattern, $response, $taxmatch);
 
-        echo($matches_out[0]);
-        echo($taxmatch[0]);
+        /*echo($matches_out[0]);
+        echo($taxmatch[0]);*/
 
         //return array($matches_out[0], $taxmatch[0]);
 		
@@ -555,12 +555,21 @@ class ControllerCheckoutConfirm extends Controller {
 			}
 
 			$data['totals'] = array();
-
+			
+			$index = 0;
 			foreach ($totals as $total) {
-				$data['totals'][] = array(
-					'title' => $total['title'],
-					'text' => $this->currency->format($total['value'], $this->session->data['currency'])
-				);
+				if($index == 2) {
+					$data['totals'][] = array(
+						'title' => 'Total Tax',
+						'text' => $this->currency->format($total['value'], $this->session->data['currency'])
+					);
+				} else {
+					$data['totals'][] = array(
+						'title' => $total['title'],
+						'text' => $this->currency->format($total['value'], $this->session->data['currency'])
+					);
+				}
+				$index++;
 			}
 
 			$data['payment'] = $this->load->controller('extension/payment/' . $this->session->data['payment_method']['code']);
