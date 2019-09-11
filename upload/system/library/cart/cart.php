@@ -364,7 +364,14 @@ class Cart {
 			}
 		}
 
-		return $tax_data;
+		foreach($this->getProducts() as $product) {
+			foreach($product as $thing) {
+				print($thing);
+			}
+		}
+		print("ASDASD");
+		return array(6.06);
+		//return $tax_data;
 	}
 
 	public function getTotal() {
