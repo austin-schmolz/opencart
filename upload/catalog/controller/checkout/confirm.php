@@ -1,6 +1,174 @@
 <?php
+use GuzzleHttp\Client;
+use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Message\Request;
+use GuzzleHttp\Stream\Stream;
 
 class ControllerCheckoutConfirm extends Controller {
+    public function vertexTax() {
+        $env = simplexml_load_string('<Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:vertexinc:o-series:tps:8:0"></Envelope>');
+
+        /*$xml = simplexml_load_string('<?xml version="1.0" encoding="UTF-8"?>
+        <VertexEnvelope xmlns="urn:vertexinc:o-series:tps:8:0"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        </VertexEnvelope>');*/
+
+        /*$vertenv = $env->addChild('<VertexEnvelope xmlns="urn:vertexinc:o-series:tps:8:0"
+                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+            </VertexEnvelope>');*/
+        
+        $body = $env->addChild("sBody");
+
+        $vertenv = $body->addChild('VertexEnvelope', "", null);
+        $vertenv->addAttribute('xmlns', 'urn:vertexinc:o-series:tps:8:0');
+        $vertenv->addAttribute('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
+
+        $Login = $vertenv->addChild('Login');
+        $Login -> addChild("UserName","austin");
+        $Login -> addChild("Password","vertex");
+        
+        $QuotationRequest = $vertenv->addChild('QuotationRequest');
+        $QuotationRequest->addAttribute('transactionType', 'SALE');
+        $TodayDate = date("Y-m-d");
+        $QuotationRequest->addAttribute('documentDate', $TodayDate );
+        
+        $Customer = $QuotationRequest->addChild('Customer');
+        $CustomerCode = $Customer ->addChild('CustomerCode');
+        $CustomerCode->addAttribute('classCode', '2002' );
+        
+        /*$order_data['shipping_firstname'] = $this->session->data['shipping_address']['firstname'];
+        $order_data['shipping_lastname'] = $this->session->data['shipping_address']['lastname'];
+        $order_data['shipping_company'] = $this->session->data['shipping_address']['company'];
+        $order_data['shipping_address_1'] = $this->session->data['shipping_address']['address_1'];
+        $order_data['shipping_address_2'] = $this->session->data['shipping_address']['address_2'];
+        $order_data['shipping_city'] = $this->session->data['shipping_address']['city'];
+        $order_data['shipping_postcode'] = $this->session->data['shipping_address']['postcode'];
+        $order_data['shipping_zone'] = $this->session->data['shipping_address']['zone'];
+        $order_data['shipping_zone_id'] = $this->session->data['shipping_address']['zone_id'];
+        $order_data['shipping_country'] = $this->session->data['shipping_address']['country'];
+        $order_data['shipping_country_id'] = $this->session->data['shipping_address']['country_id'];
+        $order_data['shipping_address_format'] = $this->session->data['shipping_address']['address_format'];
+        $order_data['shipping_custom_field'] = (isset($this->session->data['shipping_address']['custom_field']) ? $this->session->data['shipping_address']['custom_field'] : array());
+*/
+        echo $this->session->data['shipping_address']['lastname'];
+        echo $this->session->data['shipping_address']['city'];
+        $Destination = $Customer ->addChild('Destination');
+        $Destination-> addChild("StreetAddress1", $this->session->data['shipping_address']['address_1']);
+        $Destination-> addChild("City", $this->session->data['shipping_address']['city']);
+        $Destination-> addChild("MainDivision", $this->session->data['shipping_address']['zone']);
+        $Destination-> addChild("PostalCode", $this->session->data['shipping_address']['postcode']);
+        $Destination-> addChild("Country", $this->session->data['shipping_address']['country']);
+        
+        $x = 1;
+        foreach ($this->cart->getProducts() as $product) {
+            $LineItem = $QuotationRequest->addChild('LineItem');
+            $LineItem ->addAttribute('isMulticomponent', 'false' );
+            $LineItem ->addAttribute('lineItemId', $x );
+            $LineItem ->addAttribute('taxDate', $TodayDate );
+            $Product = $LineItem->addChild('Product','product code value');
+            $Product ->addAttribute('productClass', 'product class attribute value');
+            $LineItem ->addChild('Quantity', $product['quantity']);
+            $LineItem ->addChild('Freight', 0);
+            $LineItem ->addChild('UnitPrice', $product['price']);
+            $LineItem ->addChild('shipping', $this->customer->getAddressId());
+            $x++;
+        }
+        
+        Header('Content-type: text/xml');
+        //print($xml->asXML());
+        
+        //$dom = dom_import_simplexml($xml)->ownerDocument;
+        //$dom->formatOutput = true;
+        //echo $dom->saveXML();
+
+        $url = 'https://oseries.vertex.tax/vertex-ws/services/CalculateTax80';
+        /*$opts = array('http' =>
+            array(
+                'method'  => 'POST',
+                'header'  => 'Content-type: text/xml',
+                'body' => $env
+            )
+        );
+        $context  = stream_context_create($opts);
+        $result = file_get_contents($url, false, $context);*/
+
+        $client = new Client();
+        //$request = $client->createRequest();
+        $request = new Request(
+            'POST', 
+            $url,
+            ['Content-Type' => 'text/xml; charset=UTF8']
+        );
+        $env = (string)$env->asXML();
+        $env = str_replace("<sBody", "<soapenv:Body", (string)$env);
+        $env = str_replace("</sBody", "</soapenv:Body", (string)$env);
+        $env = str_replace("<Envelope", "<soapenv:Envelope", (string)$env);
+        $env = str_replace("</Envelope", "</soapenv:Envelope", (string)$env);
+        //echo $env;
+        $request->setBody(Stream::factory($env));
+
+        $response = $client->send($request);
+        $response = $response->getBody()->getContents();
+
+        $totalpattern = "/\<TotalTax\>(.+)\<\/TotalTax\>/";
+        $matches_out = array();
+        preg_match($totalpattern, $response, $matches_out);
+        
+        $taxpattern = "/\<Total\>(.+)\<\/Total\>/";
+        $taxmatch = array();
+        preg_match($taxpattern, $response, $taxmatch);
+
+        echo($matches_out[0]);
+        echo($taxmatch[0]);
+
+        //return array($matches_out[0], $taxmatch[0]);
+		
+		return array($this->stringToDouble($matches_out[0]));
+	}
+
+	public function stringToDouble($string) {
+		$dotloc = strrpos($string, ".");
+		$total = 0.0;
+		for($x = 0; $x < strlen($string); $x++) {
+			$currentChar = $string[$x];
+
+			if($currentChar == ".") {
+				continue;
+			}
+
+			if($x > $dotloc) {
+				$pow = $dotloc - $x;
+			} else {
+				$pow = ($dotloc - $x) - 1;
+			}
+			
+			$mult = pow(10, $pow);
+			if($currentChar == "0") {
+				$total = $total + $mult * 0;
+			} else if($currentChar == "1") {
+				$total = $total + $mult * 1;
+			} else if($currentChar == "2") {
+				$total = $total + $mult * 2;
+			} else if($currentChar == "3") {
+				$total = $total + $mult * 3;
+			} else if($currentChar == "4") {
+				$total = $total + $mult * 4;
+			} else if($currentChar == "5") {
+				$total = $total + $mult * 5;
+			} else if($currentChar == "6") {
+				$total = $total + $mult * 6;
+			} else if($currentChar == "7") {
+				$total = $total + $mult * 7;
+			} else if($currentChar == "8") {
+				$total = $total + $mult * 8;
+			} else if($currentChar == "9") {
+				$total = $total + $mult * 9;
+			}
+		}
+
+		return $total;
+	}
+	
 	public function index() {
 		$redirect = '';
 
@@ -58,7 +226,7 @@ class ControllerCheckoutConfirm extends Controller {
 			$order_data = array();
 
 			$totals = array();
-			$taxes = $this->cart->getTaxes();
+			$taxes = $this->vertexTax();
 			$total = 0;
 
 			$this->load->model('setting/extension');
